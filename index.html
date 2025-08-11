@@ -1,197 +1,81 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>経路表示マップ</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- Google Maps API（APIキーを適宜置き換えてください） -->
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAT6m-uKg65v8JkiIPR9UeDOVR6kXw5zyU&language=ja&libraries=places&loading=async"></script>
-
-  <style>
-    html, body {
-      height: 100%;
-      margin: 0;
-      font-family: sans-serif;
-    }
-    #map {
-      height: 100%;
-      width: 100%;
-    }
-    #panel {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      background: white;
-      padding: 10px;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-      z-index: 5;
-      width: 300px;
-    }
-    textarea {
-      width: 100%;
-      height: 100px;
-      margin-bottom: 10px;
-    }
-    button {
-      padding: 5px 10px;
-      font-size: 14px;
-    }
-  </style>
+<meta charset="UTF-8" />
+<title>経路表示アプリ</title>
+<style>
+  body { font-family: sans-serif; margin: 20px; }
+  textarea { width: 300px; height: 100px; }
+  #map { width: 100%; height: 400px; margin-top: 10px; }
+  button { margin-top: 10px; padding: 5px 10px; }
+</style>
 </head>
 <body>
 
-  <div id="panel">
-    <p><strong>訪れたい場所を順に入力してください：</strong></p>
-    <textarea id="places-input" placeholder="例：&#10;富山駅&#10;高岡駅&#10;黒部ダム"></textarea>
-    <button onclick="displayRoute()">経路表示</button>
-  </div>
+<h2>目的地を改行区切りで入力してください</h2>
+<textarea id="locations" placeholder="例：
+富山市ガラス美術館
+富山県庁
+富山駅
+"></textarea><br />
+<button onclick="showRoute()">経路を表示</button>
 
-  <div id="map"></div>
+<div id="map"></div>
 
-  <script>
-    let map;
-    let directionsService;
-    let directionsRenderer;
-    let limit_cost; //リミットコスト
-    let review_value; //平均の口コミ値
-    let review_num; //口コミ数
-    let cost; //i-jのコスト
-    let destination_order; //i番目に訪れる目的地の番号
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCy2qRJaqSJ7TsZFB3u23Bk_EAFNrnMs28&callback=initMap" async defer></script>
 
-    function initMap() {
-      map = new google.maps.Map(document.getElementById("map"), {
-        center: { lat: 36.6953, lng: 137.2113 },
-        zoom: 10,
-      });
+<script>
+let map;
+let directionsService;
+let directionsRenderer;
 
-      directionsService = new google.maps.DirectionsService();
-      directionsRenderer = new google.maps.DirectionsRenderer({ map: map });
-    }
+function initMap() {
+  map = new google.maps.Map(document.getElementById("map"), {
+    zoom: 10,
+    center: { lat: 36.695, lng: 137.213 }, // 富山あたりの中心座標
+  });
+  directionsService = new google.maps.DirectionsService();
+  directionsRenderer = new google.maps.DirectionsRenderer();
+  directionsRenderer.setMap(map);
+}
 
+function showRoute() {
+  const input = document.getElementById("locations").value.trim();
+  if (!input) {
+    alert("目的地を入力してください");
+    return;
+  }
+  const places = input.split("\n").map(s => s.trim()).filter(s => s.length > 0);
+  if (places.length < 2) {
+    alert("目的地は2つ以上入力してください");
+    return;
+  }
 
-    function fetchPlaceRatings(places, callback) {
-      const service = new google.maps.places.PlacesService(map);
-      let completed = 0;
-    
-      review_value = [];
-      review_num = [];
-    
-      places.forEach((placeName, index) => {
-        const request = {
-          query: placeName,
-          fields: ['name', 'rating', 'user_ratings_total']
-        };
-    
-        service.findPlaceFromQuery(request, (results, status) => {
-          if (status === google.maps.places.PlacesServiceStatus.OK && results.length > 0) {
-            const place = results[0];
-            review_value[index] = place.rating || 0;
-            review_num[index] = place.user_ratings_total || 0;
-            console.log(`✅ ${placeName}: 評価=${review_value[index]} 件数=${review_num[index]}`);
-          } else {
-            review_value[index] = 0;
-            review_num[index] = 0;
-            console.warn(`⚠️ ${placeName} の情報が取得できませんでした。`);
-          }
-    
-          completed++;
-          if (completed === places.length) {
-            callback(); // 全て完了したら実行
-          }
-        });
-      });
-    }
-    
-    function fetchTravelTimes(locations, callback) {
-      const service = new google.maps.DistanceMatrixService();
-      const n = locations.length;
-      cost = Array.from({ length: n }, () => Array(n).fill(Infinity));
-      let completed = 0;
-    
-      // i → j すべてのパターンでループ（i ≠ j）
-      for (let i = 0; i < n; i++) {
-        const origins = [locations[i]];
-    
-        service.getDistanceMatrix(
-          {
-            origins: origins,
-            destinations: locations,
-            travelMode: google.maps.TravelMode.DRIVING, 
-            unitSystem: google.maps.UnitSystem.METRIC,
-          },
-          (response, status) => {
-            if (status === "OK") {
-              const row = response.rows[0].elements;
-              for (let j = 0; j < n; j++) {
-                if (i !== j && row[j].status === "OK") {
-                  const durationInMin = row[j].duration.value / 60; // 秒 → 分
-                  cost[i][j] = durationInMin;
-                  console.log(`所要時間 ${locations[i]} → ${locations[j]} : ${durationInMin.toFixed(1)} 分`);
-                }
-              }
-            } else {
-              console.warn(`Distance Matrix 取得失敗: ${status}`);
-            }
-    
-            completed++;
-            if (completed === n) callback();
-          }
-        );
+  const origin = places[0];
+  const destination = places[places.length - 1];
+  const waypoints = places.slice(1, -1).map(location => ({
+    location,
+    stopover: true
+  }));
+
+  directionsService.route(
+    {
+      origin,
+      destination,
+      waypoints,
+      travelMode: google.maps.TravelMode.DRIVING,
+      optimizeWaypoints: false // 入力順通りに表示
+    },
+    (response, status) => {
+      if (status === google.maps.DirectionsStatus.OK) {
+        directionsRenderer.setDirections(response);
+      } else {
+        alert("経路の取得に失敗しました: " + status);
       }
     }
-
-
-
-    function displayRoute() {
-      const inputText = document.getElementById("places-input").value.trim();
-      const lines = inputText.split("\n").filter(line => line.trim() !== "");
-    
-      if (lines.length < 2) {
-        alert("最低2つ以上の目的地を入力してください。");
-        return;
-      }
-    
-      fetchPlaceRatings(lines, () => {
-        // 評価取得完了後に距離コスト取得
-        fetchTravelTimes(lines, () => {
-          // cost[i][j] 取得完了後に経路表示（元の経路描画コードをここに）
-          const origin = lines[0];
-          const destination = lines[lines.length - 1];
-          const waypoints = lines.slice(1, lines.length - 1).map(place => ({
-            location: place,
-            stopover: true
-          }));
-      
-          const request = {
-            origin: origin,
-            destination: destination,
-            waypoints: waypoints,
-            travelMode: google.maps.TravelMode.DRIVING,
-            optimizeWaypoints: false
-          };
-      
-          directionsService.route(request, (result, status) => {
-            if (status === google.maps.DirectionsStatus.OK) {
-              directionsRenderer.setDirections(result);
-      
-              // ✅ デバッグ表示
-              console.log("review_value:", review_value);
-              console.log("review_num:", review_num);
-              console.log("cost (分):", cost);
-            } else {
-              alert("経路を取得できませんでした: " + status);
-            }
-          });
-        });
-      });
-
-    }
-
-
-    window.onload = initMap;
-  </script>
+  );
+}
+</script>
 
 </body>
 </html>
