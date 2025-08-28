@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>学習サポート機能</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    padding: 20px;
+  }
+  .nav-buttons button {
+    margin-right: 10px;
+    padding: 10px 20px;
+    font-size: 16px;
+  }
+  .feature {
+    display: none;
+    margin-top: 20px;
+  }
+  textarea {
+    width: 100%;
+    height: 150px;
+  }
+  button.action-btn {
+    margin-top: 10px;
+    padding: 10px 20px;
+    font-size: 16px;
+    margin-right: 10px;
+  }
+  #output {
+    margin-top: 20px;
+    font-size: 18px;
+    font-weight: bold;
+  }
+  #timerDisplay {
+    font-size: 36px;
+    font-weight: bold;
+    margin-top: 20px;
+  }
+</style>
+</head>
+<body>
+
+<h2>学習サポート機能</h2>
+
+<!-- 機能切り替えボタン -->
+<div class="nav-buttons">
+  <button onclick="showFeature('random')">ランダム表示</button>
+  <button onclick="showFeature('timer')">タイマー</button>
+  <button onclick="showFeature('flashcards')">単語帳</button>
+</div>
+
+<!-- ランダム表示機能 -->
+<div id="random" class="feature">
+  <textarea id="inputText" placeholder="ここに改行ごとに入力してください"></textarea><br>
+  <button id="startBtn" class="action-btn">開始</button>
+  <button id="nextBtn" class="action-btn" style="display:none;">次へ</button>
+  <button id="resetBtn" class="action-btn" style="display:none;">リセット</button>
+  <div id="output"></div>
+</div>
+
+<!-- タイマー機能 -->
+<div id="timer" class="feature">
+  <p>タイマーを選択してください：</p>
+  <button onclick="startTimer(19,30)">お茶（19分30秒）</button>
+  <button onclick="startTimer(8,30)">沸騰（8分30秒）</button>
+  <div id="timerDisplay">00:00</div>
+  <button id="stopTimerBtn" style="display:none;" onclick="stopTimer()">停止</button>
+</div>
+
+<!-- 単語帳機能（今は空） -->
+<div id="flashcards" class="feature">
+  <p>単語帳機能はここに追加します。</p>
+</div>
+
+<script>
+/* 機能切り替え */
+function showFeature(featureId) {
+  document.querySelectorAll('.feature').forEach(div => div.style.display = 'none');
+  document.getElementById(featureId).style.display = 'block';
+}
+
+/* ランダム表示機能 */
+let lines = [];
+let remaining = [];
+
+document.getElementById('startBtn').addEventListener('click', () => {
+    const text = document.getElementById('inputText').value.trim();
+    if(!text) return alert('テキストを入力してください');
+    lines = text.split('\n').filter(line => line.trim() !== '');
+    remaining = [...lines];
+    document.getElementById('startBtn').style.display = 'none';
+    document.getElementById('nextBtn').style.display = 'inline';
+    document.getElementById('resetBtn').style.display = 'inline';
+    showNext();
+});
+
+document.getElementById('nextBtn').addEventListener('click', showNext);
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+    if(lines.length === 0) return;
+    remaining = [...lines];
+    document.getElementById('output').textContent = '';
+    document.getElementById('startBtn').style.display = 'inline';
+    document.getElementById('nextBtn').style.display = 'none';
+    document.getElementById('resetBtn').style.display = 'none';
+});
+
+function showNext() {
+    if (remaining.length === 0) {
+        document.getElementById('output').textContent = 'がんばったね！';
+        document.getElementById('nextBtn').style.display = 'none';
+        return;
+    }
+    const idx = Math.floor(Math.random() * remaining.length);
+    const line = remaining.splice(idx, 1)[0];
+    document.getElementById('output').textContent = line;
+}
+
+/* タイマー機能 */
+let timerInterval;
+let remainingSeconds;
+
+function startTimer(minutes, seconds) {
+    stopTimer(); // 既存タイマーをリセット
+    remainingSeconds = minutes * 60 + seconds;
+    updateTimerDisplay();
+    document.getElementById('stopTimerBtn').style.display = 'inline';
+    timerInterval = setInterval(() => {
+        remainingSeconds--;
+        if (remainingSeconds <= 0) {
+            clearInterval(timerInterval);
+            document.getElementById('timerDisplay').textContent = '00:00';
+            alert('タイマー終了！'); // デフォルト音
+            document.getElementById('stopTimerBtn').style.display = 'none';
+        } else {
+            updateTimerDisplay();
+        }
+    }, 1000);
+}
+
+function stopTimer() {
+    clearInterval(timerInterval);
+    document.getElementById('stopTimerBtn').style.display = 'none';
+}
+
+function updateTimerDisplay() {
+    const min = String(Math.floor(remainingSeconds / 60)).padStart(2,'0');
+    const sec = String(remainingSeconds % 60).padStart(2,'0');
+    document.getElementById('timerDisplay').textContent = `${min}:${sec}`;
+}
+
+/* 初期表示はランダム表示機能 */
+showFeature('random');
+</script>
+
+</body>
+</html>
