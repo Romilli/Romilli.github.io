@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8"/>
-  <title>ルート表示（ローカルJSON使用版）</title>
+  <title>ルート表示（ローカルJSON＋訪問順マーカー）</title>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <style>
     body { font-family: "Noto Sans JP", system-ui, sans-serif; margin: 0; }
@@ -17,10 +17,30 @@
 
   <script>
   let map;
-  let routes = {};   // すべてのルートデータを格納
-  let polylines = []; // 現在表示中のポリラインを保持（消去用）
+  let routes = {};     // すべてのルートデータ
+  let polylines = [];  // 現在表示中のポリライン
+  let markers = [];    // 表示中のマーカー
 
-  // JSONファイルをまとめて読み込む
+  // 観光地リスト（インデックス番号と対応）
+  const locations = [
+"黒部ダム","富山市ガラス美術館","瑞龍寺","雪の大谷","富岩運河環水公園","越中五箇山相倉集落","富山県美術館",
+"称名滝","みくりが池","高岡大仏","砺波チューリップ公園","黒部峡谷トロッコ列車","雨晴海岸","富山城","恋人の聖地海王丸パーク",
+"富山市役所展望塔","スターバックスコーヒー富山環水公園店","富山市ファミリーパーク","氷見漁港場外市場ひみ番屋街","魚津水族館",
+"ほたるいか海上観光集合場所","氷見市潮風ギャラリー藤子不二雄Aアートコレクション","海王丸パーク","ほたるいかミュージアム",
+"ますのすし本舗源ますのすしミュージアム","松川遊覧船乗り場（松川茶屋）","新湊大橋","（株）池田屋安兵衛商店健康膳薬都","道の駅雨晴",
+"富山ガラス工房","きときと市場とやマルシェGOSHU","北前船回船問屋森家","チューリップ四季彩館","井波別院瑞泉寺","日枝神社",
+"富山市科学博物館","富山縣護國神社","菅沼合掌造り集落（南砺市菅沼重要伝統的建造物群保存地区）","富山城址公園","満天の湯富山店",
+"富岩水上ライン","おとぎの森館","高岡古城公園","散居村展望台","富山県中央植物園","秋水美術館","金太郎温泉日帰り温泉カルナの館",
+"諏訪町本通り","富山県立山カルデラ砂防博物館","富山市郷土博物館","富山港展望台","高岡古城公園動物園","立山","富山市民俗民芸村民俗資料館",
+"富山市佐藤記念美術館","高岡おとぎの森公園","高岡市万葉歴史館","ミラージュランド","庄川峡","宇奈月駅","あさひ舟川「春の四重奏」",
+"弥陀ヶ原","県民公園太閤山ランド","岩瀬の古い町並み","庄川温泉郷","となみチューリップ公園東門","黒部平","富山県水墨美術館","（有）営農ワイエムアイ",
+"桂樹舎・和紙文庫","海の駅蜃気楼","日石寺","勝興寺","八重津浜海水浴場","高志の国文学館","魚津埋没林博物館","射水市大島絵本館",
+"閑乗寺公園","富山県立イタイイタイ病資料館","氷見あいやまガーデン","松川公園","牛岳温泉スキー場","梅かまミュージアムU-mei館",
+"ミュゼふくおかカメラ館","呉羽山公園","朝日山公園","高岡御車山会館","氷見市海浜植物園シーサイドパーク","高岡城跡","まんがロード",
+"高天原温泉","黒部川電気記念館","剱岳","山町筋重要伝統的建造物群保存地区","高岡市美術館","富山二上山","薬師岳"
+];
+
+  // JSONファイル読み込み
   async function loadAllRoutes() {
     const parts = 10; // routes_part1.json ~ routes_part9.json
     for (let k = 1; k <= parts; k++) {
@@ -34,34 +54,58 @@
   // 地図初期化
   function initMap() {
     map = new google.maps.Map(document.getElementById("map"), {
-      center: { lat: 36.695, lng: 137.213 }, // 適宜調整
+      center: { lat: 36.695, lng: 137.213 },
       zoom: 10,
     });
   }
 
-  // 折れ線を描画
+  // 折れ線と訪問順マーカーを描画
   function drawRouteOnMap(order) {
-    if (!map) {
-      console.warn("地図がまだ初期化されていません");
-      return;
-    }
-    if (!routes || Object.keys(routes).length === 0) {
-      console.warn("ルートデータが未ロードです");
-      return;
-    }
+    if (!map) return;
+    if (!routes || Object.keys(routes).length === 0) return;
 
-    // 既存の線を消去
+    // 古い線を消す
     polylines.forEach(pl => pl.setMap(null));
     polylines = [];
 
-    // 指定された順序でルートを描画
+    // 古いマーカーを消す
+    markers.forEach(m => m.setMap(null));
+    markers = [];
+
+    // Geocoderを用いて各地点にマーカー設置
+    const geocoder = new google.maps.Geocoder();
+
+    order.forEach((locIdx, step) => {
+      const placeName = locations[locIdx];
+      geocoder.geocode({ address: placeName }, (results, status) => {
+        if (status === "OK" && results[0]) {
+          const marker = new google.maps.Marker({
+            position: results[0].geometry.location,
+            map,
+            label: String(step + 1), // 訪問順の番号を表示
+          });
+          const infowindow = new google.maps.InfoWindow({
+            content: `<b>${step + 1}.</b> ${placeName}`
+          });
+          marker.addListener("click", () => {
+            infowindow.open(map, marker);
+          });
+          markers.push(marker);
+        } else {
+          console.warn("ジオコード失敗:", placeName, status);
+        }
+      });
+    });
+
+    // 順序通りにルート描画
     for (let i = 1; i < order.length; i++) {
-      const a = Math.min(order[i - 1], order[i]);
-      const b = Math.max(order[i - 1], order[i]);
-      const key = `${a}_${b}`;
-      const polyStr = routes[key];
+      const a = order[i - 1];
+      const b = order[i];
+      const key1 = `${a}_${b}`;
+      const key2 = `${b}_${a}`;
+      const polyStr = routes[key1] || routes[key2]; // 双方向対応
       if (!polyStr) {
-        console.warn("ルートデータなし:", key);
+        console.warn("ルートデータなし:", key1, key2);
         continue;
       }
       const path = google.maps.geometry.encoding.decodePath(polyStr);
@@ -76,13 +120,13 @@
     }
   }
 
-  // ページ読み込み後の処理
+  // ページ読み込み後
   window.addEventListener("load", async () => {
     initMap();
     await loadAllRoutes();
 
-    // ★テスト表示（1→15→16→20 の順）
-    drawRouteOnMap([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96]);
+    // ★テスト表示（0→1→2→3→4 の順に訪問）
+    drawRouteOnMap([1, 15, 16, 20]);
   });
   </script>
 </body>
