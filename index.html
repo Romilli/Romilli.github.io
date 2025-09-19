@@ -1,429 +1,89 @@
 <!doctype html>
 <html lang="ja">
 <head>
-<meta charset="utf-8"/>
-<title>stdin → JS SA runner + Map route</title>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<style>
-  body { font-family: "Noto Sans JP", system-ui, -apple-system; margin:12px; }
-  .col { display:inline-block; vertical-align:top; }
-  #left { width:420px; }
-  #right { width: calc(100% - 440px); margin-left:12px; }
-  textarea { width:100%; box-sizing:border-box; font-family: monospace; }
-  #map { width:100%; height:560px; margin-top:8px; border:1px solid #ddd; }
-  .btn { padding:6px 10px; margin:4px 4px 4px 0; }
-  pre { white-space: pre-wrap; background:#111; color:#cfc; padding:8px; height:260px; overflow:auto; }
-  label { font-weight:600; }
-  .small { font-size:0.9rem; color:#555; }
-</style>
+  <meta charset="utf-8"/>
+  <title>ルート表示（ローカルJSON使用版）</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <style>
+    body { font-family: "Noto Sans JP", system-ui, sans-serif; margin: 0; }
+    #map { width: 100%; height: 100vh; }
+  </style>
 </head>
 <body>
-  <h2>標準入力 → JavaScript 実行（SA） & 地図に経路表示</h2>
-  <h3>営業時間8:00~20:00　所要時間30分</h3>
+  <div id="map"></div>
 
-  <div id="left" class="col">
-    <label>標準入力（stdin）</label>
-    <textarea id="stdin" rows="14" placeholder="ここに C++ と同じ形式の入力を貼ってください。例（簡略）:
-6
-0 5 8.0 20.0
-3.5 4.2 4.8 4.0 3.7 4.5
-10 50 120 30 5 80
-... cost matrix NxN (分単位, -1 = unreachable)
-"></textarea>
-    <div style="margin-top:8px;">
-      <button id="runBtn" class="btn">実行</button>
-      <button id="clearOut" class="btn">出力クリア</button>
-    </div>
+  <!-- Google Maps JavaScript API（geometryライブラリを必ず指定） -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCy2qRJaqSJ7TsZFB3u23Bk_EAFNrnMs28&libraries=geometry" async defer></script>
 
-    <div style="margin-top:10px;">
-      <label>実行結果（stdout / stderr）</label>
-      <pre id="stdout">(ここに stdout/stderr が出ます)</pre>
-    </div>
-    <div class="small" style="margin-top:6px;">
-      ※ Google Maps API キーを下のスクリプトURLの <code>YOUR_API_KEY</code> 部分に入れてください。大きい N のときはブラウザが一時的に重くなる場合があります。
-    </div>
-  </div>
+  <script>
+  let map;
+  let routes = {};   // すべてのルートデータを格納
+  let polylines = []; // 現在表示中のポリラインを保持（消去用）
 
-  <div id="right" class="col">
-    <label>地図（経路表示）</label>
-    <div id="map"></div>
-  </div>
+  // JSONファイルをまとめて読み込む
+  async function loadAllRoutes() {
+    const parts = 9; // routes_part1.json ~ routes_part9.json
+    for (let k = 1; k <= parts; k++) {
+      const resp = await fetch(`routes_part${k}.json`);
+      const data = await resp.json();
+      Object.assign(routes, data);
+    }
+    console.log("全ルート読み込み完了:", Object.keys(routes).length, "件");
+  }
 
-  <!-- Google Maps JavaScript API: YOUR_API_KEY を置き換えてください -->
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCy2qRJaqSJ7TsZFB3u23Bk_EAFNrnMs28&libraries=places" async defer></script>
-
-<script>
-/* -------------------- 場所配列（C++ と同じ順序） -------------------- */
-const loca_names = [
-"黒部ダム","富山市ガラス美術館","瑞龍寺","雪の大谷","富岩運河環水公園","越中五箇山相倉集落","富山県美術館",
-"称名滝","みくりが池","高岡大仏","砺波チューリップ公園","黒部峡谷トロッコ列車","雨晴海岸","富山城","恋人の聖地海王丸パーク",
-"富山市役所展望塔","スターバックスコーヒー富山環水公園店","富山市ファミリーパーク","氷見漁港場外市場ひみ番屋街","魚津水族館",
-"ほたるいか海上観光集合場所","氷見市潮風ギャラリー藤子不二雄Aアートコレクション","海王丸パーク","ほたるいかミュージアム",
-"ますのすし本舗源ますのすしミュージアム","松川遊覧船乗り場（松川茶屋）","新湊大橋","（株）池田屋安兵衛商店健康膳薬都","道の駅雨晴",
-"富山ガラス工房","きときと市場とやマルシェGOSHU","北前船回船問屋森家","チューリップ四季彩館","井波別院瑞泉寺","日枝神社",
-"富山市科学博物館","富山縣護國神社","菅沼合掌造り集落（南砺市菅沼重要伝統的建造物群保存地区）","富山城址公園","満天の湯富山店",
-"富岩水上ライン","おとぎの森館","高岡古城公園","散居村展望台","富山県中央植物園","秋水美術館","金太郎温泉日帰り温泉カルナの館",
-"諏訪町本通り","富山県立山カルデラ砂防博物館","富山市郷土博物館","富山港展望台","高岡古城公園動物園","立山","富山市民俗民芸村民俗資料館",
-"富山市佐藤記念美術館","高岡おとぎの森公園","高岡市万葉歴史館","ミラージュランド","庄川峡","宇奈月駅","あさひ舟川「春の四重奏」",
-"弥陀ヶ原","県民公園太閤山ランド","岩瀬の古い町並み","庄川温泉郷","となみチューリップ公園東門","黒部平","富山県水墨美術館","（有）営農ワイエムアイ",
-"桂樹舎・和紙文庫","海の駅蜃気楼","日石寺","勝興寺","八重津浜海水浴場","高志の国文学館","魚津埋没林博物館","射水市大島絵本館",
-"閑乗寺公園","富山県立イタイイタイ病資料館","氷見あいやまガーデン","松川公園","牛岳温泉スキー場","梅かまミュージアムU-mei館",
-"ミュゼふくおかカメラ館","呉羽山公園","朝日山公園","高岡御車山会館","氷見市海浜植物園シーサイドパーク","高岡城跡","まんがロード",
-"高天原温泉","黒部川電気記念館","剱岳","山町筋重要伝統的建造物群保存地区","高岡市美術館","富山二上山","薬師岳"
-];
-
-/* -------------------- DOM -------------------- */
-const stdinEl = document.getElementById("stdin");
-const runBtn = document.getElementById("runBtn");
-const stdoutEl = document.getElementById("stdout");
-const clearOutBtn = document.getElementById("clearOut");
-
-function appendOut(s, isErr=false){
-  stdoutEl.textContent += s;
-  stdoutEl.scrollTop = stdoutEl.scrollHeight;
-}
-
-/* -------------------- Google Maps -------------------- */
-let map, directionsService, directionsRenderer;
-function initMapIfReady(){
-  if(window.google && google.maps && !map){
+  // 地図初期化
+  function initMap() {
     map = new google.maps.Map(document.getElementById("map"), {
-      center: { lat: 36.695, lng: 137.213 },
+      center: { lat: 36.695, lng: 137.213 }, // 適宜調整
       zoom: 10,
     });
-    directionsService = new google.maps.DirectionsService();
-    directionsRenderer = new google.maps.DirectionsRenderer({map});
   }
-}
-setTimeout(initMapIfReady, 800);
 
-/* -------------------- 評価関数等（C++ を JS に移植） -------------------- */
-const CONST_REVIEW_NUM = 20.0;
-
-function evalScore(satisfaction_sum, pass_edge_num, all_edge_num){
-  let base = 100.0 * satisfaction_sum;
-  let edge_bonus = 0.1 * Math.pow(100.0 * (pass_edge_num / all_edge_num), 2.0);
-  return base + edge_bonus;
-}
-
-function evaluate_route(P, order){
-  const dest_num = order.length;
-  // unique unordered edges
-  const edge_set = new Set();
-  for(let v=1; v<dest_num; ++v){
-    const a = Math.min(order[v-1], order[v]);
-    const b = Math.max(order[v-1], order[v]);
-    edge_set.add(a + "-" + b);
-  }
-  const pass_edge_num = edge_set.size;
-  const all_edge_num = P.N * (P.N - 1) / 2;
-
-  let now_time = P.start_time;
-  let feasible = true;
-  let satisfaction_sum = 0.0;
-
-  for(let idx=1; idx<dest_num-1; ++idx){
-    const v = order[idx];
-    const prev = order[idx-1];
-    now_time += P.cost[prev][v];
-    const open_s = P.open_time[v][0];
-    const open_e = P.open_time[v][1];
-
-    if(now_time < open_s) now_time = open_s;
-    now_time += P.required_time[v];
-
-    if(now_time > open_e){
-      feasible = false;
-      break;
+  // 折れ線を描画
+  function drawRouteOnMap(order) {
+    if (!map) {
+      console.warn("地図がまだ初期化されていません");
+      return;
+    }
+    if (!routes || Object.keys(routes).length === 0) {
+      console.warn("ルートデータが未ロードです");
+      return;
     }
 
-    const tmp = (P.review_num[v]*P.review_num[v])/(CONST_REVIEW_NUM*CONST_REVIEW_NUM);
-    const S = P.review_val[v] * Math.min(1.0, tmp);
-    satisfaction_sum += S;
-  }
+    // 既存の線を消去
+    polylines.forEach(pl => pl.setMap(null));
+    polylines = [];
 
-  let arrival_goal_time = now_time + P.cost[ order[dest_num-2] ][ P.goal_vertex ];
-  if(arrival_goal_time > P.goal_time) feasible = false;
-
-  let raw_score = evalScore(satisfaction_sum, pass_edge_num, all_edge_num);
-  if(!feasible) raw_score = -1e6 + raw_score * 1e-4;
-
-  return { score: raw_score, feasible: feasible, arrival_time_at_goal: arrival_goal_time };
-}
-
-/* ---------- 初期解 greedy ---------- */
-function greedy_initial(P){
-  const route = [];
-  route.push(P.start_vertex);
-  const used = new Array(P.N).fill(false);
-  used[P.start_vertex] = true;
-  used[P.goal_vertex] = true;
-
-  let now_time = P.start_time;
-
-  while(true){
-    const last = route[route.length - 1];
-    let best_v = -1;
-    let best_score = -1e100;
-    let best_new_time = 0.0;
-
-    for(let v=0; v<P.N; ++v){
-      if(used[v]) continue;
-      let arrival_time = now_time + P.cost[last][v];
-      if(arrival_time < P.open_time[v][0]) arrival_time = P.open_time[v][0];
-      const leave_time = arrival_time + P.required_time[v];
-      if(leave_time > P.open_time[v][1]) continue;
-      if(leave_time + P.cost[v][P.goal_vertex] > P.goal_time) continue;
-
-      const tmp = (P.review_num[v]*P.review_num[v])/(CONST_REVIEW_NUM*CONST_REVIEW_NUM);
-      const S = P.review_val[v] * Math.min(1.0, tmp);
-      const E = S / (1.0 + P.cost[last][v]);
-
-      if(E > best_score){
-        best_score = E;
-        best_v = v;
-        best_new_time = leave_time;
+    // 指定された順序でルートを描画
+    for (let i = 1; i < order.length; i++) {
+      const a = Math.min(order[i - 1], order[i]);
+      const b = Math.max(order[i - 1], order[i]);
+      const key = `${a}_${b}`;
+      const polyStr = routes[key];
+      if (!polyStr) {
+        console.warn("ルートデータなし:", key);
+        continue;
       }
-    }
-
-    if(best_v === -1) break;
-    route.push(best_v);
-    used[best_v] = true;
-    now_time = best_new_time;
-  }
-
-  if(route[route.length-1] !== P.goal_vertex) route.push(P.goal_vertex);
-  return route;
-}
-
-/* ---------- 近傍操作（3つ） ---------- */
-function neighbor_random_swap(route, rng, start_fix_count=1, end_fix_count=1){
-  const n = route.length;
-  if(n <= start_fix_count + end_fix_count + 1) return route.slice();
-  const r = route.slice();
-  const low = start_fix_count; const high = n - 1 - end_fix_count;
-  const i = Math.floor(rng() * (high - low + 1)) + low;
-  const j = Math.floor(rng() * (high - low + 1)) + low;
-  if(i === j) return r;
-  const tmp = r[i]; r[i] = r[j]; r[j] = tmp;
-  return r;
-}
-
-function neighbor_remove_insert(route, P, rng){
-  const n = route.length;
-  if(n <= 3) return route.slice();
-  const r = route.slice();
-  const remove_pos = Math.floor(rng() * (n - 2)) + 1;
-  const removed = r.splice(remove_pos, 1)[0];
-
-  const inRoute = new Array(P.N).fill(0);
-  for(const v of r) inRoute[v] = 1;
-  const unused = [];
-  for(let v=0; v<P.N; ++v) if(!inRoute[v]) unused.push(v);
-  if(unused.length === 0) return r;
-  const pick = unused[Math.floor(rng() * unused.length)];
-  const insert_pos = Math.floor(rng() * (r.length - 1)) + 1;
-  r.splice(insert_pos, 0, pick);
-  return r;
-}
-
-function neighbor_2opt(route, rng){
-  const n = route.length;
-  if(n <= 4) return route.slice();
-  const r = route.slice();
-  let i = Math.floor(rng() * (n - 2)) + 1;
-  let j = Math.floor(rng() * (n - 2)) + 1;
-  if(i > j){ const t=i;i=j;j=t; }
-  if(i === j) return r;
-  let left = r.slice(0,i);
-  let mid = r.slice(i, j+1).reverse();
-  let right = r.slice(j+1);
-  return left.concat(mid, right);
-}
-
-/* ---------- 焼きなまし本体 ---------- */
-function simulated_annealing(P, time_limit_seconds = 0.95){
-  const rng = (() => {
-    let seed = Math.floor(Math.random()*1e9);
-    return function(){ seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x80000000; };
-  })();
-
-  let cur = greedy_initial(P);
-  let cur_eval = evaluate_route(P, cur);
-  appendOut("initial_score : " + cur_eval.score + "\n");
-  let best = cur.slice();
-  let best_eval = Object.assign({}, cur_eval);
-
-  let T0 = 1e4, T_end = 0.1, decay = 0.99998;
-  let T = T0;
-  const start = performance.now();
-  let iter = 0;
-  while(true){
-    iter++;
-    const now = performance.now();
-    const elapsed = (now - start)/1000.0;
-    if(elapsed > time_limit_seconds) break;
-
-    const mv = Math.floor(rng()*3);
-    let cand;
-    if(mv === 0) cand = neighbor_random_swap(cur, rng);
-    else if(mv === 1) cand = neighbor_2opt(cur, rng);
-    else cand = neighbor_remove_insert(cur, P, rng);
-
-    const cand_eval = evaluate_route(P, cand);
-    const delta = cand_eval.score - cur_eval.score;
-    let accept = false;
-    if(delta >= 0) accept = true;
-    else {
-      const prob = Math.exp(delta / Math.max(1e-12, T));
-      if(rng() < prob) accept = true;
-    }
-    if(accept){
-      cur = cand;
-      cur_eval = cand_eval;
-      if(cur_eval.score > best_eval.score){
-        best = cur.slice();
-        best_eval = Object.assign({}, cur_eval);
-      }
-    }
-
-    if(iter % 10000 === 0){
-      appendOut("[iter] " + iter + " best_score: " + best_eval.score + "\n");
-    }
-
-    T *= decay;
-    if(T < T_end) T = T0;
-  }
-
-  appendOut("SA finished. iterations: " + iter + "\n");
-  return best;
-}
-
-/* -------------------- 入力パーサ（C++ と同様形式を想定） -------------------- */
-function parseInput(text){
-  // split whitespace but preserve newlines for potential places listing later
-  const toks = text.trim().split(/\s+/);
-  if(toks.length === 0) throw new Error("入力が空です");
-  let pos = 0;
-  const N = parseInt(toks[pos++]);
-  if(isNaN(N) || N<=0) throw new Error("最初の N が不正です");
-  const start_vertex = parseInt(toks[pos++]);
-  const goal_vertex = parseInt(toks[pos++]);
-  const start_time = parseFloat(toks[pos++]);
-  const goal_time = parseFloat(toks[pos++]);
-
-  const review_val = new Array(N);
-  for(let i=0;i<N;i++){ review_val[i] = parseFloat(toks[pos++]); }
-  const review_num = new Array(N);
-  for(let i=0;i<N;i++){ review_num[i] = parseInt(toks[pos++]); }
-
-  const cost = new Array(N);
-  for(let i=0;i<N;i++){
-    cost[i] = new Array(N);
-    for(let j=0;j<N;j++){
-      let d = parseFloat(toks[pos++]);
-      if(isNaN(d)) d = -1;
-      if(d === -1) cost[i][j] = 1e9;
-      else cost[i][j] = d / 60.0; // C++ divides by 60
+      const path = google.maps.geometry.encoding.decodePath(polyStr);
+      const polyline = new google.maps.Polyline({
+        path,
+        strokeColor: "#FF0000",
+        strokeOpacity: 0.8,
+        strokeWeight: 4,
+        map
+      });
+      polylines.push(polyline);
     }
   }
 
-  // open_time and required_time: in C++ they used fixed values if not provided
-  const open_time = new Array(N);
-  const required_time = new Array(N);
-  for(let i=0;i<N;i++){
-    open_time[i] = [480.0, 1200.0]; // same defaults
-    required_time[i] = 30.0;
-  }
+  // ページ読み込み後の処理
+  window.addEventListener("load", async () => {
+    initMap();
+    await loadAllRoutes();
 
-  return { N, start_vertex, goal_vertex, start_time, goal_time, review_val, review_num, cost, open_time, required_time };
-}
-
-/* -------------------- 実行時の流れ -------------------- */
-runBtn.addEventListener("click", async () => {
-  appendOut("=== Run start ===\n");
-  const input = stdinEl.value;
-  if(!input || input.trim().length === 0){
-    appendOut("stdin が空です。テスト用に簡易例を出力します。\n");
-    // 簡易3地点例
-    const example = ["富山市ガラス美術館","富山県庁","富山駅"];
-    appendOut("destination_order_size " + example.length + "\n");
-    appendOut("Best route found (size " + example.length + "): \nScore: 0 feasible: 1 arrival_time: 0\n");
-    for(let i=0;i<example.length;i++) appendOut(i + (i+1===example.length? "\n":" "));
-    appendOut("\n");
-    for(const n of example) appendOut(n + "\n");
-    drawRouteOnMap(example);
-    return;
-  }
-
-  let P;
-  try{
-    P = parseInput(input);
-  } catch(e){
-    appendOut("[parse error] " + e.message + "\n");
-    return;
-  }
-
-  appendOut("N=" + P.N + " start=" + P.start_vertex + " goal=" + P.goal_vertex + "\n");
-
-  // run SA (synchronous; time-limited)
-  try{
-    const best = simulated_annealing(P, 0.95);
-    const evalr = evaluate_route(P, best);
-    appendOut("Best route found (size " + best.length + "): ");
-    appendOut("\nScore: " + evalr.score + " feasible: " + evalr.feasible + " arrival_time: " + evalr.arrival_time_at_goal + "\n");
-    for(let i=0;i<best.length;i++){
-      appendOut(best[i] + (i+1===best.length? "\n":" "));
-    }
-    appendOut("\n");
-    // print names
-    for(let i=0;i<best.length;i++){
-      const id = best[i];
-      if(id >=0 && id < loca_names.length) appendOut(loca_names[id] + "\n");
-      else appendOut("place_" + id + "\n");
-    }
-
-    // prepare name list for map
-    const namesOrder = best.map(idx => (idx>=0 && idx<loca_names.length) ? loca_names[idx] : ("place_"+idx));
-    drawRouteOnMap(namesOrder);
-  } catch(e){
-    appendOut("[runtime error] " + e.message + "\n");
-  }
-});
-
-/* -------------------- Map 描画 -------------------- */
-function drawRouteOnMap(placeNames){
-  initMapIfReady();
-  if(!directionsService || !directionsRenderer){
-    appendOut("[地図未初期化]\n");
-    return;
-  }
-  if(placeNames.length < 2){
-    appendOut("[経路描画には2地点以上必要です]\n");
-    return;
-  }
-  const origin = placeNames[0];
-  const destination = placeNames[placeNames.length-1];
-  const waypts = placeNames.slice(1, -1).map(p => ({ location: p, stopover: true }));
-
-  directionsService.route({
-    origin,
-    destination,
-    waypoints: waypts,
-    travelMode: google.maps.TravelMode.DRIVING,
-    optimizeWaypoints: false
-  }, (res, status) => {
-    if(status === "OK"){
-      directionsRenderer.setDirections(res);
-      appendOut("[地図描画 成功]\n");
-    } else {
-      appendOut("[地図描画 失敗] " + status + "\n");
-    }
+    // ★テスト表示（1→15→16→20 の順）
+    drawRouteOnMap([1, 15, 16, 20]);
   });
-}
-
-clearOutBtn.addEventListener("click", () => { stdoutEl.textContent = ""; });
-
-</script>
+  </script>
 </body>
 </html>
