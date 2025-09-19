@@ -22,7 +22,7 @@
 
   // JSONファイルをまとめて読み込む
   async function loadAllRoutes() {
-    const parts = 9; // routes_part1.json ~ routes_part9.json
+    const parts = 10; // routes_part1.json ~ routes_part9.json
     for (let k = 1; k <= parts; k++) {
       const resp = await fetch(`routes_part${k}.json`);
       const data = await resp.json();
