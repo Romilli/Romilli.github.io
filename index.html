@@ -6,22 +6,74 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <style>
     body { font-family: "Noto Sans JP", system-ui, sans-serif; margin: 0; }
-    #map { width: 100%; height: 100vh; }
+    #map { width: 100%; height: calc(100vh - 100px); }
+    header {
+      background: #f8f8f8;
+      padding: 10px 16px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    header label {
+      font-size: 14px;
+      margin-right: 4px;
+    }
+    header input, header select {
+      padding: 4px 6px;
+      font-size: 14px;
+    }
+    header button {
+      background: #0078ff;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    header button:hover {
+      background: #005fcc;
+    }
   </style>
 </head>
 <body>
+  <!-- 上部入力フォーム -->
+  <header>
+    <label>始点:</label>
+    <select id="start">
+      <option value="富山市">富山市</option>
+      <option value="高岡市">高岡市</option>
+      <option value="黒部市">黒部市</option>
+    </select>
+
+    <label>終点:</label>
+    <select id="end">
+      <option value="富山市">富山市</option>
+      <option value="高岡市">高岡市</option>
+      <option value="黒部市">黒部市</option>
+    </select>
+
+    <label>出発時刻:</label>
+    <input type="time" id="startTime" value="08:00">
+
+    <label>到着時刻:</label>
+    <input type="time" id="endTime" value="18:00">
+
+    <button id="showRouteBtn">ルート表示</button>
+  </header>
+
   <div id="map"></div>
 
-  <!-- Google Maps JavaScript API（geometryライブラリを必ず指定） -->
+  <!-- Google Maps JavaScript API -->
   <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCy2qRJaqSJ7TsZFB3u23Bk_EAFNrnMs28&libraries=geometry" async defer></script>
 
   <script>
   let map;
-  let routes = {};     // すべてのルートデータ
-  let polylines = [];  // 現在表示中のポリライン
-  let markers = [];    // 表示中のマーカー
+  let routes = {};
+  let polylines = [];
+  let markers = [];
 
-  // 観光地リスト（インデックス番号と対応）
   const locations = [
 "黒部ダム","富山市ガラス美術館","瑞龍寺","雪の大谷","富岩運河環水公園","越中五箇山相倉集落","富山県美術館",
 "称名滝","みくりが池","高岡大仏","砺波チューリップ公園","黒部峡谷トロッコ列車","雨晴海岸","富山城","恋人の聖地海王丸パーク",
@@ -40,9 +92,8 @@
 "高天原温泉","黒部川電気記念館","剱岳","山町筋重要伝統的建造物群保存地区","高岡市美術館","富山二上山","薬師岳"
 ];
 
-  // JSONファイル読み込み
   async function loadAllRoutes() {
-    const parts = 10; // routes_part1.json ~ routes_part9.json
+    const parts = 10;
     for (let k = 1; k <= parts; k++) {
       const resp = await fetch(`routes_part${k}.json`);
       const data = await resp.json();
@@ -51,7 +102,6 @@
     console.log("全ルート読み込み完了:", Object.keys(routes).length, "件");
   }
 
-  // 地図初期化
   function initMap() {
     map = new google.maps.Map(document.getElementById("map"), {
       center: { lat: 36.695, lng: 137.213 },
@@ -59,20 +109,16 @@
     });
   }
 
-  // 折れ線と訪問順マーカーを描画
   function drawRouteOnMap(order) {
     if (!map) return;
     if (!routes || Object.keys(routes).length === 0) return;
 
-    // 古い線を消す
     polylines.forEach(pl => pl.setMap(null));
     polylines = [];
 
-    // 古いマーカーを消す
     markers.forEach(m => m.setMap(null));
     markers = [];
 
-    // Geocoderを用いて各地点にマーカー設置
     const geocoder = new google.maps.Geocoder();
 
     order.forEach((locIdx, step) => {
@@ -82,7 +128,7 @@
           const marker = new google.maps.Marker({
             position: results[0].geometry.location,
             map,
-            label: String(step + 1), // 訪問順の番号を表示
+            label: String(step + 1),
           });
           const infowindow = new google.maps.InfoWindow({
             content: `<b>${step + 1}.</b> ${placeName}`
@@ -91,23 +137,17 @@
             infowindow.open(map, marker);
           });
           markers.push(marker);
-        } else {
-          console.warn("ジオコード失敗:", placeName, status);
         }
       });
     });
 
-    // 順序通りにルート描画
     for (let i = 1; i < order.length; i++) {
       const a = order[i - 1];
       const b = order[i];
       const key1 = `${a}_${b}`;
       const key2 = `${b}_${a}`;
-      const polyStr = routes[key1] || routes[key2]; // 双方向対応
-      if (!polyStr) {
-        console.warn("ルートデータなし:", key1, key2);
-        continue;
-      }
+      const polyStr = routes[key1] || routes[key2];
+      if (!polyStr) continue;
       const path = google.maps.geometry.encoding.decodePath(polyStr);
       const polyline = new google.maps.Polyline({
         path,
@@ -120,13 +160,21 @@
     }
   }
 
-  // ページ読み込み後
   window.addEventListener("load", async () => {
     initMap();
     await loadAllRoutes();
 
-    // ★テスト表示（0→1→2→3→4 の順に訪問）
-    drawRouteOnMap([1, 2, 3, 4, 5, 6]);
+    // ボタンイベント
+    document.getElementById("showRouteBtn").addEventListener("click", () => {
+      const start = document.getElementById("start").value;
+      const end = document.getElementById("end").value;
+      const startTime = document.getElementById("startTime").value;
+      const endTime = document.getElementById("endTime").value;
+      console.log("入力:", { start, end, startTime, endTime });
+
+      // ★ここでアルゴリズムを呼び出して order を生成する（今回は仮）
+      drawRouteOnMap([1, 2, 3, 4, 5, 6]);
+    });
   });
   </script>
 </body>
