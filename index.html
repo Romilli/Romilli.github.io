@@ -7,6 +7,7 @@
   <style>
     body { font-family: "Noto Sans JP", system-ui, sans-serif; margin: 0; }
     #map { width: 100%; height: calc(100vh - 100px); }
+
     header {
       background: #f8f8f8;
       padding: 10px 16px;
@@ -16,14 +17,9 @@
       gap: 8px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
-    header label {
-      font-size: 14px;
-      margin-right: 4px;
-    }
-    header input, header select {
-      padding: 4px 6px;
-      font-size: 14px;
-    }
+
+    header label { font-size: 14px; margin-right: 4px; }
+    header input, header select { padding: 4px 6px; font-size: 14px; }
     header button {
       background: #0078ff;
       color: white;
@@ -31,14 +27,72 @@
       padding: 6px 12px;
       border-radius: 4px;
       cursor: pointer;
+      transition: background 0.2s;
     }
-    header button:hover {
-      background: #005fcc;
+    header button:hover { background: #005fcc; }
+
+    /* モーダル関連 */
+    .modal {
+      display: none; /* 初期は非表示 */
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto; /* スクロール可能にする */
+      background-color: rgba(0,0,0,0.5);
     }
+    
+    .modal-content {
+      background-color: #fff;
+      margin: 5% auto;
+      padding: 20px;
+      max-width: 800px;
+      border-radius: 8px;
+      overflow-x: auto; /* 横スクロール対応 */
+    }
+    
+    .close {
+      float: right;
+      font-size: 24px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .close:hover { color: #000; }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+    
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+    }
+    
+    th {
+      background-color: #f0f0f0;
+    }
+    
+    #showDetailsBtn {
+      background: #00aa55;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    #showDetailsBtn:hover {
+      background: #008844; /* 暗くする */
+    }
+
   </style>
 </head>
 <body>
-  <!-- 上部入力フォーム -->
   <header>
     <label>始点:</label>
     <select id="start">
@@ -61,119 +115,205 @@
     <input type="time" id="endTime" value="18:00">
 
     <button id="showRouteBtn">ルート表示</button>
+    <button id="showDetailsBtn">詳細表示</button>
   </header>
 
   <div id="map"></div>
 
-  <!-- Google Maps JavaScript API -->
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCy2qRJaqSJ7TsZFB3u23Bk_EAFNrnMs28&libraries=geometry" async defer></script>
+  <!-- モーダル -->
+  <div id="detailsModal" class="modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h2>ルート詳細</h2>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>地点名</th>
+              <th>滞在時間</th>
+              <th>到着時間</th>
+              <th>出発時間</th>
+            </tr>
+          </thead>
+          <tbody id="routeDetailsBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Google Maps APIを最後に読み込む -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCy2qRJaqSJ7TsZFB3u23Bk_EAFNrnMs28&libraries=geometry"></script>
 
   <script>
-  let map;
-  let routes = {};
-  let polylines = [];
-  let markers = [];
+  document.addEventListener("DOMContentLoaded", async () => {
+    let map;
+    let routes = {};
+    let polylines = [];
+    let markers = [];
 
-  const locations = [
-"黒部ダム","富山市ガラス美術館","瑞龍寺","雪の大谷","富岩運河環水公園","越中五箇山相倉集落","富山県美術館",
-"称名滝","みくりが池","高岡大仏","砺波チューリップ公園","黒部峡谷トロッコ列車","雨晴海岸","富山城","恋人の聖地海王丸パーク",
-"富山市役所展望塔","スターバックスコーヒー富山環水公園店","富山市ファミリーパーク","氷見漁港場外市場ひみ番屋街","魚津水族館",
-"ほたるいか海上観光集合場所","氷見市潮風ギャラリー藤子不二雄Aアートコレクション","海王丸パーク","ほたるいかミュージアム",
-"ますのすし本舗源ますのすしミュージアム","松川遊覧船乗り場（松川茶屋）","新湊大橋","（株）池田屋安兵衛商店健康膳薬都","道の駅雨晴",
-"富山ガラス工房","きときと市場とやマルシェGOSHU","北前船回船問屋森家","チューリップ四季彩館","井波別院瑞泉寺","日枝神社",
-"富山市科学博物館","富山縣護國神社","菅沼合掌造り集落（南砺市菅沼重要伝統的建造物群保存地区）","富山城址公園","満天の湯富山店",
-"富岩水上ライン","おとぎの森館","高岡古城公園","散居村展望台","富山県中央植物園","秋水美術館","金太郎温泉日帰り温泉カルナの館",
-"諏訪町本通り","富山県立山カルデラ砂防博物館","富山市郷土博物館","富山港展望台","高岡古城公園動物園","立山","富山市民俗民芸村民俗資料館",
-"富山市佐藤記念美術館","高岡おとぎの森公園","高岡市万葉歴史館","ミラージュランド","庄川峡","宇奈月駅","あさひ舟川「春の四重奏」",
-"弥陀ヶ原","県民公園太閤山ランド","岩瀬の古い町並み","庄川温泉郷","となみチューリップ公園東門","黒部平","富山県水墨美術館","（有）営農ワイエムアイ",
-"桂樹舎・和紙文庫","海の駅蜃気楼","日石寺","勝興寺","八重津浜海水浴場","高志の国文学館","魚津埋没林博物館","射水市大島絵本館",
-"閑乗寺公園","富山県立イタイイタイ病資料館","氷見あいやまガーデン","松川公園","牛岳温泉スキー場","梅かまミュージアムU-mei館",
-"ミュゼふくおかカメラ館","呉羽山公園","朝日山公園","高岡御車山会館","氷見市海浜植物園シーサイドパーク","高岡城跡","まんがロード",
-"高天原温泉","黒部川電気記念館","剱岳","山町筋重要伝統的建造物群保存地区","高岡市美術館","富山二上山","薬師岳"
-];
+    const locations = [
+      "黒部ダム","富山市ガラス美術館","瑞龍寺","雪の大谷","富岩運河環水公園","越中五箇山相倉集落","富山県美術館"
+    ];
+    
+    const routeData = [
+      ["黒部ダム", "30分", "08:00", "08:30"],
+      ["富山市ガラス美術館", "45分", "09:15", "10:00"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "10:30", "10:50"],
+      
+    ];
 
-  async function loadAllRoutes() {
-    const parts = 10;
-    for (let k = 1; k <= parts; k++) {
-      const resp = await fetch(`routes_part${k}.json`);
-      const data = await resp.json();
-      Object.assign(routes, data);
+    async function loadAllRoutes() {
+      try {
+        const resp = await fetch("routes_part1.json");
+        const data = await resp.json();
+        Object.assign(routes, data);
+      } catch (e) {
+        console.log("ルートデータを読み込めませんでした");
+      }
     }
-    console.log("全ルート読み込み完了:", Object.keys(routes).length, "件");
-  }
 
-  function initMap() {
-    map = new google.maps.Map(document.getElementById("map"), {
-      center: { lat: 36.695, lng: 137.213 },
-      zoom: 10,
-    });
-  }
-
-  function drawRouteOnMap(order) {
-    if (!map) return;
-    if (!routes || Object.keys(routes).length === 0) return;
-
-    polylines.forEach(pl => pl.setMap(null));
-    polylines = [];
-
-    markers.forEach(m => m.setMap(null));
-    markers = [];
-
-    const geocoder = new google.maps.Geocoder();
-
-    order.forEach((locIdx, step) => {
-      const placeName = locations[locIdx];
-      geocoder.geocode({ address: placeName }, (results, status) => {
-        if (status === "OK" && results[0]) {
-          const marker = new google.maps.Marker({
-            position: results[0].geometry.location,
-            map,
-            label: String(step + 1),
-          });
-          const infowindow = new google.maps.InfoWindow({
-            content: `<b>${step + 1}.</b> ${placeName}`
-          });
-          marker.addListener("click", () => {
-            infowindow.open(map, marker);
-          });
-          markers.push(marker);
-        }
+    function initMap() {
+      map = new google.maps.Map(document.getElementById("map"), {
+        center: { lat: 36.695, lng: 137.213 },
+        zoom: 10,
       });
-    });
-
-    for (let i = 1; i < order.length; i++) {
-      const a = order[i - 1];
-      const b = order[i];
-      const key1 = `${a}_${b}`;
-      const key2 = `${b}_${a}`;
-      const polyStr = routes[key1] || routes[key2];
-      if (!polyStr) continue;
-      const path = google.maps.geometry.encoding.decodePath(polyStr);
-      const polyline = new google.maps.Polyline({
-        path,
-        strokeColor: "#FF0000",
-        strokeOpacity: 0.8,
-        strokeWeight: 4,
-        map
-      });
-      polylines.push(polyline);
     }
-  }
 
-  window.addEventListener("load", async () => {
+    function drawRouteOnMap(order) {
+      if (!map) return;
+
+      // 一旦クリア
+      polylines.forEach(pl => pl.setMap(null));
+      markers.forEach(m => m.setMap(null));
+      polylines = [];
+      markers = [];
+
+      const geocoder = new google.maps.Geocoder();
+      order.forEach((locIdx, step) => {
+        const placeName = locations[locIdx];
+        geocoder.geocode({ address: placeName }, (results, status) => {
+          if (status === "OK" && results[0]) {
+            const marker = new google.maps.Marker({
+              position: results[0].geometry.location,
+              map,
+              label: String(step + 1),
+            });
+            markers.push(marker);
+          }
+        });
+      });
+    }
+    
+    function populateRouteTable(data) {
+      const tbody = document.getElementById("routeDetailsBody");
+      tbody.innerHTML = ""; // 古い内容をクリア
+    
+      data.forEach(row => {
+        const tr = document.createElement("tr");
+        row.forEach(cell => {
+          const td = document.createElement("td");
+          td.textContent = cell;
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+    }
+
+    // --- 地図とデータを初期化 ---
     initMap();
     await loadAllRoutes();
 
-    // ボタンイベント
+    // --- ボタンイベント ---
     document.getElementById("showRouteBtn").addEventListener("click", () => {
-      const start = document.getElementById("start").value;
-      const end = document.getElementById("end").value;
-      const startTime = document.getElementById("startTime").value;
-      const endTime = document.getElementById("endTime").value;
-      console.log("入力:", { start, end, startTime, endTime });
-
-      // ★ここでアルゴリズムを呼び出して order を生成する（今回は仮）
       drawRouteOnMap([1, 2, 3, 4, 5, 6]);
+    });
+
+    // === モーダル専用の処理 ===
+    const modal = document.getElementById("detailsModal");
+    const openBtn = document.getElementById("showDetailsBtn");
+    const closeBtn = document.querySelector(".close");
+
+    openBtn.addEventListener("click", () => {
+      populateRouteTable(routeData);
+      modal.style.display = "block";
+    });
+
+    closeBtn.addEventListener("click", () => {
+      modal.style.display = "none";
+    });
+
+    window.addEventListener("click", (event) => {
+      if (event.target === modal) {
+        modal.style.display = "none";
+      }
     });
   });
   </script>
