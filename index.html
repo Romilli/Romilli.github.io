@@ -18,7 +18,7 @@
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
 
-    header label { font-size: 14px; margin-right: 4px; }
+    header label { font-size: 14px; margin-right: 0px; }
     header input, header select { padding: 4px 6px; font-size: 14px; }
     header button {
       background: #0078ff;
@@ -32,7 +32,7 @@
     header button:hover { background: #005fcc; }
     
     .select-wrapper {
-      width: 260px; /* 表示幅を指定 */
+      width: 300px; /* 表示幅を指定 */
       overflow: hidden;
     }
     
@@ -118,7 +118,7 @@
         <option value="富山県美術館">富山県美術館</option>
         <option value="氷見市潮風ギャラリー藤子不二雄Aアートコレクション">氷見市潮風ギャラリー藤子不二雄Aアートコレクション</option>
       </select>
-    </div><br>
+    </div>
 
     <label>終点:</label>
     <div class="select-wrapper">
@@ -143,7 +143,7 @@
     <button id="showRouteBtn">ルートを計算して表示</button>
     <button id="showDetailsBtn">詳細表示</button>
     
-    <label>現在のルートのスコア：</label>
+    <label>スコア：</label>
     <span id="routeScore">0</span>
   </header>
 
@@ -200,9 +200,9 @@
     const tableData = [
       ["富岩運河環水公園", "30分", "08:00", "08:30"],
       ["↓", "20分", "", ""],
-      ["富山市ガラス美術館", "45分", "08:50", "9:35"],
+      ["富山市ガラス美術館", "45分", "08:50", "09:35"],
       ["↓", "10分", "", ""],
-      ["瑞龍寺", "20分", "9:45", "10:05"],
+      ["瑞龍寺", "20分", "09:45", "10:05"],
       ["↓", "15分", "", ""],
       ["富山市科学博物館", "20分", "10:20", "10:40"],
       ["↓", "30分", "", ""],
