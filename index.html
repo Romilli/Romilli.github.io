@@ -96,16 +96,26 @@
   <header>
     <label>始点:</label>
     <select id="start">
-      <option value="富山市">富山市</option>
-      <option value="高岡市">高岡市</option>
-      <option value="黒部市">黒部市</option>
+      <option value=富山市ガラス美術館>富山市ガラス美術館</option>
+      <option value=黒部ダム>黒部ダム</option>
+      <option value=瑞龍寺>瑞龍寺</option>
+      <option value=雪の大谷>雪の大谷</option>
+      <option value=富岩運河環水公園>富岩運河環水公園</option>
+      <option value=越中五箇山相倉集落>越中五箇山相倉集落</option>
+      <option value=富山県美術館>富山県美術館</option>
+      <option value=氷見市潮風ギャラリー藤子不二雄Aアートコレクション>氷見市潮風ギャラリー藤子不二雄Aアートコレクション</option>
     </select>
 
     <label>終点:</label>
     <select id="end">
-      <option value="富山市">富山市</option>
-      <option value="高岡市">高岡市</option>
-      <option value="黒部市">黒部市</option>
+      <option value=富山市ガラス美術館>富山市ガラス美術館</option>
+      <option value=黒部ダム>黒部ダム</option>
+      <option value=瑞龍寺>瑞龍寺</option>
+      <option value=雪の大谷>雪の大谷</option>
+      <option value=富岩運河環水公園>富岩運河環水公園</option>
+      <option value=越中五箇山相倉集落>越中五箇山相倉集落</option>
+      <option value=富山県美術館>富山県美術館</option>
+      <option value=氷見市潮風ギャラリー藤子不二雄Aアートコレクション>氷見市潮風ギャラリー藤子不二雄Aアートコレクション</option>
     </select>
 
     <label>出発時刻:</label>
@@ -116,6 +126,9 @@
 
     <button id="showRouteBtn">ルートを計算して表示</button>
     <button id="showDetailsBtn">詳細表示</button>
+    
+    <label>現在のルートのスコア：</label>
+    <span id="routeScore">0</span>
   </header>
 
   <div id="map"></div>
@@ -141,7 +154,6 @@
     </div>
   </div>
 
-  <!-- Google Maps APIを最後に読み込む -->
   <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCy2qRJaqSJ7TsZFB3u23Bk_EAFNrnMs28&libraries=geometry"></script>
 
   <script>
@@ -172,9 +184,13 @@
     const tableData = [
       ["富岩運河環水公園", "30分", "08:00", "08:30"],
       ["↓", "20分", "", ""],
-      ["富山市ガラス美術館", "45分", "09:15", "10:00"],
+      ["富山市ガラス美術館", "45分", "08:50", "9:35"],
       ["↓", "10分", "", ""],
-      ["瑞龍寺", "20分", "10:30", "10:50"],
+      ["瑞龍寺", "20分", "9:45", "10:05"],
+      ["↓", "15分", "", ""],
+      ["富山市科学博物館", "20分", "10:20", "10:40"],
+      ["↓", "30分", "", ""],
+      ["高岡大仏", "20分", "11:10", "11:30"],
     ];
 
     async function loadAllRoutes() {
@@ -308,6 +324,12 @@
         arr.push(numbers.splice(index, 1)[0]); // 重複しないように取り出す
       }
       console.log(arr);
+      
+      // 例: ルートスコアが計算されたとき
+      const score = 9802.345; // スコア計算関数
+      // idで要素を取得してテキストを更新
+      document.getElementById("routeScore").textContent = score;
+      
       return arr;
     }
     
