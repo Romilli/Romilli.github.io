@@ -192,35 +192,58 @@
     function drawRouteOnMap(order) {
       if (!map) return;
       if (!routes || Object.keys(routes).length === 0) return;
-  
+    
+      // --- 古い線とマーカーをクリア ---
       polylines.forEach(pl => pl.setMap(null));
       polylines = [];
-  
+    
       markers.forEach(m => m.setMap(null));
       markers = [];
-  
+    
       const geocoder = new google.maps.Geocoder();
-  
+    
+      // --- 色パレット（5色を順番に使用） ---
+      const colors = ["#e74c3c", "#3498db", "#2ecc71", "#f1c40f", "#9b59b6"];
+    
+      // --- ピンと線を順に描画 ---
       order.forEach((locIdx, step) => {
         const placeName = locations[locIdx];
+        const color = colors[step % colors.length]; // ← ピンと線の色を合わせる
+    
         geocoder.geocode({ address: placeName }, (results, status) => {
           if (status === "OK" && results[0]) {
             const marker = new google.maps.Marker({
               position: results[0].geometry.location,
               map,
-              label: String(step + 1),
+              label: {
+                text: String(step + 1),
+                color: "#fff",
+                fontWeight: "bold"
+              },
+              icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: 12,
+                fillColor: color,
+                fillOpacity: 1,
+                strokeColor: "white",
+                strokeWeight: 2
+              }
             });
+    
             const infowindow = new google.maps.InfoWindow({
               content: `<b>${step + 1}.</b> ${placeName}`
             });
+    
             marker.addListener("click", () => {
               infowindow.open(map, marker);
             });
+    
             markers.push(marker);
           }
         });
       });
-  
+    
+      // --- 経路線の描画 ---
       for (let i = 1; i < order.length; i++) {
         const a = order[i - 1];
         const b = order[i];
@@ -228,17 +251,22 @@
         const key2 = `${b}_${a}`;
         const polyStr = routes[key1] || routes[key2];
         if (!polyStr) continue;
+    
         const path = google.maps.geometry.encoding.decodePath(polyStr);
+        const color = colors[(i - 1) % colors.length];
+    
         const polyline = new google.maps.Polyline({
           path,
-          strokeColor: "#FF0000",
-          strokeOpacity: 0.8,
-          strokeWeight: 4,
+          strokeColor: color,
+          strokeOpacity: 0.8, // ← 透明度
+          strokeWeight: 4, // ← 線の太さ
           map
         });
+    
         polylines.push(polyline);
       }
     }
+
     
     function populateRouteTable(data) {
       const tbody = document.getElementById("routeDetailsBody");
