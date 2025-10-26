@@ -30,6 +30,18 @@
       transition: background 0.2s;
     }
     header button:hover { background: #005fcc; }
+    
+    .select-wrapper {
+      width: 240px; /* 表示幅を指定 */
+      overflow: hidden;
+    }
+    
+    .select-wrapper select {
+      width: 100%;
+      text-overflow: ellipsis; /* 省略記号 */
+      white-space: nowrap;      /* 折り返さない */
+      overflow: hidden;
+    }
 
     /* モーダル関連 */
     .modal {
@@ -95,28 +107,32 @@
 <body>
   <header>
     <label>始点:</label>
-    <select id="start">
-      <option value=富山市ガラス美術館>富山市ガラス美術館</option>
-      <option value=黒部ダム>黒部ダム</option>
-      <option value=瑞龍寺>瑞龍寺</option>
-      <option value=雪の大谷>雪の大谷</option>
-      <option value=富岩運河環水公園>富岩運河環水公園</option>
-      <option value=越中五箇山相倉集落>越中五箇山相倉集落</option>
-      <option value=富山県美術館>富山県美術館</option>
-      <option value=氷見市潮風ギャラリー藤子不二雄Aアートコレクション>氷見市潮風ギャラリー藤子不二雄Aアートコレクション</option>
-    </select>
+    <div class="select-wrapper">
+      <select id="start">
+        <option value="富山市ガラス美術館">富山市ガラス美術館</option>
+        <option value="黒部ダム">黒部ダム</option>
+        <option value="瑞龍寺">瑞龍寺</option>
+        <option value="雪の大谷">雪の大谷</option>
+        <option value="富岩運河環水公園">富岩運河環水公園</option>
+        <option value="越中五箇山相倉集落">越中五箇山相倉集落</option>
+        <option value="富山県美術館">富山県美術館</option>
+        <option value="氷見市潮風ギャラリー藤子不二雄Aアートコレクション">氷見市潮風ギャラリー藤子不二雄Aアートコレクション</option>
+      </select>
+    </div><br>
 
     <label>終点:</label>
-    <select id="end">
-      <option value=富山市ガラス美術館>富山市ガラス美術館</option>
-      <option value=黒部ダム>黒部ダム</option>
-      <option value=瑞龍寺>瑞龍寺</option>
-      <option value=雪の大谷>雪の大谷</option>
-      <option value=富岩運河環水公園>富岩運河環水公園</option>
-      <option value=越中五箇山相倉集落>越中五箇山相倉集落</option>
-      <option value=富山県美術館>富山県美術館</option>
-      <option value=氷見市潮風ギャラリー藤子不二雄Aアートコレクション>氷見市潮風ギャラリー藤子不二雄Aアートコレクション</option>
-    </select>
+    <div class="select-wrapper">
+      <select id="end">
+        <option value="富山市ガラス美術館">富山市ガラス美術館</option>
+        <option value="黒部ダム">黒部ダム</option>
+        <option value="瑞龍寺">瑞龍寺</option>
+        <option value="雪の大谷">雪の大谷</option>
+        <option value="富岩運河環水公園">富岩運河環水公園</option>
+        <option value="越中五箇山相倉集落">越中五箇山相倉集落</option>
+        <option value="富山県美術館">富山県美術館</option>
+        <option value="氷見市潮風ギャラリー藤子不二雄Aアートコレクション">氷見市潮風ギャラリー藤子不二雄Aアートコレクション</option>
+      </select>
+    </div>
 
     <label>出発時刻:</label>
     <input type="time" id="startTime" value="08:00">
