@@ -164,10 +164,13 @@
     ];
 
     async function loadAllRoutes() {
+      const routes = {};
       const parts = 10;
+      const baseURL = "https://raw.githubusercontent.com/Romilli/Romilli.github.io/refs/heads/main"; // ←ここを書き換える
+    
       for (let k = 1; k <= parts; k++) {
         try {
-          const resp = await fetch(`routes_part${k}.json`);
+          const resp = await fetch(`${baseURL}/routes_part${k}.json`);
           if (!resp.ok) throw new Error(`HTTP error! status: ${resp.status}`);
           const data = await resp.json();
           Object.assign(routes, data);
@@ -175,8 +178,10 @@
           console.log(`ルートデータを読み込めませんでした（routes_part${k}.json）`, e);
         }
       }
+    
       console.log("全ルート読み込み完了:", Object.keys(routes).length, "件");
     }
+
 
     function initMap() {
       map = new google.maps.Map(document.getElementById("map"), {
