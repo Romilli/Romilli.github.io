@@ -4,11 +4,11 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
   <title>富山県マップ（Leaflet + OSM）</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-sA+e2qkFqk0v7K1g6w9r0zg9m6s0S0bqz0v1hI3v0Xk=" crossorigin=""/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
   <style>
-    html,body,#map { height: 100%; margin: 0; padding: 0; }
-    /* スマホで操作しやすいボタンUI */
+    html, body { height: 100%; margin: 0; padding: 0; }
+    #map { width: 100%; height: 100vh; }
+
     .controls {
       position: absolute;
       top: 10px;
@@ -41,178 +41,30 @@
 <body>
   <div id="map"></div>
 
-  <div class="controls" role="toolbar" aria-label="map controls">
+  <div class="controls">
     <button id="locateBtn">現在地</button>
     <button id="clearBtn">マーカー消去</button>
     <button id="routeBtn">経路取得・表示</button>
     <button id="downloadBtn">GeoJSONを保存</button>
   </div>
 
-  <div class="hint">
-    長押しでマーカーを追加 → 順に経路を取得します。<br>
-    初期表示は富山県中心、Zoom: 8〜16 に制限しています。
-  </div>
+  <div class="hint">長押しでマーカーを追加 → 順に経路を取得します。</div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-          integrity="sha256-o9N1j7g3Bv3q8sH1wFhFzJqZt6s3bq3Z4f6qKQ/8H6M=" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script>
-    // 富山県中心 (緯度, 経度)
     const TOYAMA_CENTER = [36.6953, 137.2137];
-
-    // マップ初期化
     const map = L.map('map', {
       center: TOYAMA_CENTER,
       zoom: 9,
       minZoom: 8,
-      maxZoom: 16,
-      zoomControl: true,
-      tap: false,           // mobile tap誤検知を減らす
-      inertia: true,
-      preferCanvas: true    // パフォーマンス向上（大量描画時）
+      maxZoom: 16
     });
 
-    // OSMタイル（軽めのプロバイダを指定）
-    L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+    // ← この行を修正（確実に動くOSMタイル）
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
-
-    // UI要素
-    const locateBtn = document.getElementById('locateBtn');
-    const clearBtn = document.getElementById('clearBtn');
-    const routeBtn = document.getElementById('routeBtn');
-    const downloadBtn = document.getElementById('downloadBtn');
-
-    // マーカー管理
-    let markers = [];      // L.Marker の配列（表示順がそのまま経路順）
-    let markerLayer = L.layerGroup().addTo(map);
-    let routeLayer = L.geoJSON(null, {
-      style: { color: '#007bff', weight: 4, opacity: 0.9 }
-    }).addTo(map);
-
-    // 長押しでマーカー追加の実装（シンプル）
-    let pressTimer = null;
-    let pressThreshold = 500; // ms
-
-    map.on('mousedown touchstart', (e) => {
-      if (pressTimer) clearTimeout(pressTimer);
-      pressTimer = setTimeout(() => {
-        addMarker(e.latlng);
-      }, pressThreshold);
-    });
-    map.on('mouseup touchend touchcancel touchmove', () => {
-      if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
-    });
-
-    function addMarker(latlng) {
-      const idx = markers.length + 1;
-      const m = L.marker(latlng, { zIndexOffset: 1000 }).bindPopup(`#${idx}`);
-      m.addTo(markerLayer);
-      markers.push(m);
-      // タップでポップアップを開く（スマホ向け）
-      m.on('click', () => m.openPopup());
-    }
-
-    // 現在地取得
-    locateBtn.addEventListener('click', () => {
-      if (!navigator.geolocation) {
-        alert('位置情報が利用できません。HTTPSでアクセスしているか確認してください。');
-        return;
-      }
-      locateBtn.disabled = true;
-      navigator.geolocation.getCurrentPosition(pos => {
-        const latlng = [pos.coords.latitude, pos.coords.longitude];
-        map.flyTo(latlng, 13);
-        L.circleMarker(latlng, { radius: 8, fillColor: '#3388ff', color: '#fff', weight: 2 }).addTo(map)
-         .bindPopup('現在地').openPopup();
-        locateBtn.disabled = false;
-      }, (err) => {
-        alert('位置情報の取得に失敗しました: ' + err.message);
-        locateBtn.disabled = false;
-      }, { enableHighAccuracy: true, timeout: 8000 });
-    });
-
-    // クリア
-    clearBtn.addEventListener('click', () => {
-      markers = [];
-      markerLayer.clearLayers();
-      routeLayer.clearLayers();
-    });
-
-    // OSRMで経路取得して表示
-    // マーカー座標の順序でルートを引きます
-    routeBtn.addEventListener('click', async () => {
-      if (markers.length < 2) {
-        alert('マーカーは2つ以上必要です（長押しで追加）。');
-        return;
-      }
-      routeBtn.disabled = true;
-      routeLayer.clearLayers();
-      try {
-        const coords = markers.map(m => {
-          const p = m.getLatLng();
-          return `${p.lng},${p.lat}`;
-        }).join(';');
-
-        // 公開OSRMサーバーを利用（テスト用）。大量リクエストは避けてください。
-        const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`OSRMエラー: ${res.status}`);
-        const data = await res.json();
-        if (!data.routes || data.routes.length === 0) throw new Error('ルートが見つかりませんでした。');
-
-        // GeoJSONとして表示
-        const geo = {
-          type: "Feature",
-          properties: {
-            distance: data.routes[0].distance,
-            duration: data.routes[0].duration
-          },
-          geometry: data.routes[0].geometry
-        };
-        routeLayer.addData(geo);
-        map.fitBounds(routeLayer.getBounds(), { padding: [30,30] });
-
-        // ダウンロード用に保存しておく（routeGeoJson変数）
-        window.routeGeoJson = geo;
-
-      } catch (err) {
-        alert('経路取得に失敗しました: ' + err.message);
-      } finally {
-        routeBtn.disabled = false;
-      }
-    });
-
-    // GeoJSONをダウンロード
-    downloadBtn.addEventListener('click', () => {
-      const obj = window.routeGeoJson;
-      if (!obj) {
-        alert('まず「経路取得・表示」をしてください。');
-        return;
-      }
-      const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      const ts = new Date().toISOString().replace(/[:.]/g,'-');
-      a.download = `route_toyama_${ts}.geojson`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    });
-
-    // 初期マーカー（任意：富山駅あたりの例を用意）
-    const toyamaStation = L.marker([36.6952,137.2137]).bindPopup('富山駅');
-    toyamaStation.addTo(markerLayer);
-    markers.push(toyamaStation);
-
-    // スマホでの見た目を少し改善するためにスケール表示を追加
-    L.control.scale({ position: 'bottomleft' }).addTo(map);
-
-    // シンプルなズームイン・ズームアウトのボタンは Leaflet の標準を使います（右上）
-    // タッチ操作に関する追加設定（必要に応じて）
-    // map.options.doubleClickZoom = false; // ダブルタップズーム無効化するなら
   </script>
 </body>
 </html>
