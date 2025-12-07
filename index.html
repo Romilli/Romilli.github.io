@@ -832,7 +832,7 @@
   }
   
   // ---------- annealing 操作 ----------
-  function simulatedAnnealing(P, time_limit_seconds) {
+  async function simulatedAnnealing(P, time_limit_seconds) {
     let cur = greedyInitial(P);
     let curEval = evaluateRoute(P, cur);
   
@@ -851,6 +851,8 @@
   
     while (true) {
       iter++;
+      // 非同期で描画の機会を与える
+      await new Promise(r => setTimeout(r, 0));
   
       const now = performance.now();
       const elapsed = now - start;
@@ -933,8 +935,6 @@
     return new Promise(async resolve => {
       let best = [];
       let evalResult = null;
-      // 非同期で描画の機会を与える
-      await new Promise(r => setTimeout(r, 0));
     
       for (let i = 0; i < repeat_num; i++) {
         const cand = simulatedAnnealing(P, unit);
